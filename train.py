@@ -109,12 +109,13 @@ def main():
     update_target_steps = 120
     exploration_prob = 1.0
     exploration_decay = 0.01
+    min_exploration_prob = 0.01
     batch_size = 64
-    lr = 0.001
+    lr = 0.002
     delta = 0.99
     save_path = "checkpoints"
     n_show_episode = 100
-    show_episodes = False
+    show_episodes = True
 
     # environment
     env = gym.make("LunarLander-v2")
@@ -137,11 +138,12 @@ def main():
     steps = 0
     rewards = []
     for episode in tqdm(range(n_episodes)):
-        observation = env.reset()
+        observation, info = env.reset()
         done = False
+        trunc = False
         total_reward = 0
 
-        while not done:
+        while not done and not trunc:
             if show_episodes and episode % n_show_episode == 0:
                 env.render()
 
@@ -156,7 +158,7 @@ def main():
                 policy_model.train()
 
             # execute the action
-            next_observation, reward, done, info = env.step(action)
+            next_observation, reward, done, trunc, _ = env.step(action)
             total_reward += reward
 
             # save experience
@@ -176,7 +178,8 @@ def main():
                 target_model.load_state_dict(policy_model.state_dict())
 
         # decay exploration rate
-        exploration_prob -= exploration_decay
+        if exploration_prob > min_exploration_prob:
+            exploration_prob -= exploration_decay
 
         # save total reward for this episode
         rewards.append(total_reward)
@@ -184,7 +187,9 @@ def main():
         # save model if this episode was the best one yet
         if total_reward >= max(rewards):
             save_name = save_path + "/best.pt"
-            logger.info("New Best Episode, Saving Model To '{}', Reward: {}".format(save_name, total_reward))
+            logger.info("New Best Episode, Saving Model To '{}', Reward: {}, Exploration Prob: {}".format(save_name,
+                                                                                                          total_reward,
+                                                                                                          exploration_prob))
             torch.save({
                 'epoch': episode,
                 'model_state_dict': target_model.state_dict(),
